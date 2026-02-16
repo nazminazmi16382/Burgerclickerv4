@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Burger Clicker v4.1</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
+        body { background-color: #f1f5f9; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        
+        #menu-dropdown { 
+            display: none; position: absolute; right: 0; top: 50px; 
+            background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            z-index: 100; width: 170px; border: 1px solid #e2e8f0;
+        }
+        #menu-dropdown.show { display: block; animation: slideIn 0.2s ease-out; }
+
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .click-anim { position: absolute; color: #6366f1; font-weight: 800; animation: floatUp 0.8s forwards; pointer-events: none; z-index: 1000; }
+        @keyframes floatUp { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: translateY(-100px) scale(1.5); } }
+        
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <audio id="bg-music" loop>
+        <source src="https://www.bensound.com/bensound-music/bensound-slowmotion.mp3" type="audio/mpeg">
+    </audio>
+
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 p-4 px-6 flex justify-between items-center shadow-sm">
+        <div class="flex items-center gap-4">
+            <button id="music-btn" class="bg-indigo-100 p-2 rounded-full hover:bg-indigo-200 transition">
+                <span id="music-icon">🔇</span>
+            </button>
+            <div>
+                <p class="text-[10px] font-bold uppercase text-slate-400">Cyber Balance</p>
+                <div id="money-display" class="text-2xl font-black text-slate-900">$0</div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4 relative">
+            <button id="menu-btn" class="p-2 hover:bg-slate-100 rounded-full transition">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+            <div id="menu-dropdown">
+                <button onclick="saveGame()" class="w-full text-left px-4 py-3 hover:bg-indigo-50 text-sm font-bold border-b border-slate-100">💾 Save Game</button>
+                <button onclick="resetGame()" class="w-full text-left px-4 py-3 hover:bg-red-50 text-sm font-bold text-red-600">⚠️ Reset Progres</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <div class="lg:col-span-1 order-2 lg:order-1">
+            <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+                <h2 class="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 text-indigo-600">🏆 Leaderboard</h2>
+                <div id="leaderboard-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 order-1 lg:order-2 flex flex-col items-center">
+            <button id="main-clicker" class="outline-none transform active:scale-90 transition-all duration-75 mt-4 mb-8">
+                <div class="bg-white p-12 rounded-full shadow-2xl border-[12px] border-white relative">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3075/3075977.png" class="w-36 h-36 md:w-52 md:h-52 select-none" alt="Burger">
+                </div>
+            </button>
+            <div class="bg-white border border-slate-200 px-8 py-3 rounded-2xl shadow-sm">
+                <span id="power-display" class="text-2xl font-black text-indigo-600">+$1</span>
+            </div>
+        </div>
+
+        <div class="lg:col-span-1 order-3 h-[60vh] overflow-y-auto custom-scroll pr-2">
+            <h2 class="text-sm font-black uppercase tracking-widest mb-4">🛒 Cyber Store</h2>
+            <div id="shop-container" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        let money = 0;
+        let totalClicks = 0;
+        let clickPower = 1;
+        let musicOn = false;
+
+        const baseItems = [
+            { id: 0, name: "Soggy Napkin", price: 15, multiplier: 1, img: "🧻" },
+            { id: 1, name: "Neon Fork", price: 100, multiplier: 5, img: "🍴" },
+            { id: 2, name: "Digital Salt", price: 500, multiplier: 20, img: "🧂" },
+            { id: 3, name: "Laser Toaster", price: 2500, multiplier: 80, img: "🍞" },
+            { id: 4, name: "Robot Chef", price: 10000, multiplier: 350, img: "🤖" },
+            { id: 5, name: "Quantum Oven", price: 75000, multiplier: 2000, img: "🔥" }
+        ];
+        let upgrades = JSON.parse(JSON.stringify(baseItems));
+        let bots = [{ name: "Neal_Lover", score: 2500 }, { name: "BurgerKing", score: 1800 }];
+
+        // --- AUDIO ENGINE ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bgMusic = document.getElementById('bg-music');
+        const musicBtn = document.getElementById('music-btn');
+
+        function playBurgerClickSound() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(500, audioCtx.currentTime); // Frekuensi "Pop"
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        musicBtn.addEventListener('click', () => {
+            if (!musicOn) {
+                bgMusic.play();
+                document.getElementById('music-icon').innerText = '🔊';
+                musicOn = true;
+            } else {
+                bgMusic.pause();
+                document.getElementById('music-icon').innerText = '🔇';
+                musicOn = false;
+            }
+        });
+
+        // --- UI & LOGIC ---
+        const menuBtn = document.getElementById('menu-btn');
+        const menuDropdown = document.getElementById('menu-dropdown');
+
+        menuBtn.addEventListener('click', (e) => { e.stopPropagation(); menuDropdown.classList.toggle('show'); });
+        window.onclick = () => menuDropdown.classList.remove('show');
+
+        function saveGame() {
+            localStorage.setItem('chillClickerV41', JSON.stringify({money, clickPower, upgrades, totalClicks}));
+            alert("Progres Tersimpan!");
+        }
+
+        function resetGame() {
+            if(confirm("Ulang dari awal?")) { localStorage.clear(); location.reload(); }
+        }
+
+        document.getElementById('main-clicker').addEventListener('click', (e) => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            money += clickPower;
+            totalClicks += 1;
+            playBurgerClickSound();
+            
+            const txt = document.createElement('div');
+            txt.className = 'click-anim';
+            txt.style.left = e.clientX + 'px'; txt.style.top = e.clientY + 'px';
+            txt.innerText = `+$${clickPower}`;
+            document.body.appendChild(txt);
+            setTimeout(() => txt.remove(), 800);
+            updateUI();
+        });
+
+        function buyItem(id) {
+            if (money >= upgrades[id].price) {
+                money -= upgrades[id].price;
+                clickPower += upgrades[id].multiplier;
+                upgrades[id].price = Math.floor(upgrades[id].price * 1.7);
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('money-display').innerText = `$${money.toLocaleString()}`;
+            document.getElementById('power-display').innerText = `+$${clickPower.toLocaleString()}`;
+            
+            const shop = document.getElementById('shop-container');
+            shop.innerHTML = '';
+            upgrades.forEach(item => {
+                const can = money >= item.price;
+                shop.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm ${can ? '' : 'opacity-50'}">
+                        <div class="flex items-center gap-3 mb-2 text-sm font-bold"><span>${item.img}</span> ${item.name}</div>
+                        <button onclick="buyItem(${item.id})" class="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold" ${can ? '' : 'disabled'}>Buy: $${item.price.toLocaleString()}</button>
+                    </div>
+                `;
+            });
+
+            const lb = document.getElementById('leaderboard-list');
+            lb.innerHTML = '';
+            let players = [...bots, {name: "You (User)", score: totalClicks}].sort((a,b) => b.score - a.score);
+            players.forEach((p, i) => {
+                lb.innerHTML += `<div class="flex justify-between p-2 ${p.name.includes("You") ? 'bg-indigo-50 rounded-lg font-bold' : ''}"><span>#${i+1} ${p.name}</span><span>${p.score}</span></div>`;
+            });
+        }
+
+        // Auto-update bots
+        setInterval(() => { bots.forEach(b => b.score += Math.floor(Math.random()*2)); updateUI(); }, 5000);
+
+        // Load & Start
+        const saved = localStorage.getItem('BurgerClickerV41');
+        if(saved) { const d = JSON.parse(saved); money=d.money; clickPower=d.clickPower; upgrades=d.upgrades; totalClicks=d.totalClicks; }
+        updateUI();
+    </script>
+</body>
+</html>
